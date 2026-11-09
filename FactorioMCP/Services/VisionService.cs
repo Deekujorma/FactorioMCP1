@@ -42,7 +42,8 @@ internal sealed class VisionService(RconClient rcon)
     /// Defaults to <c>%APPDATA%/Factorio/script-output</c>.
     /// </summary>
     internal string ScriptOutputDir { get; set; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Factorio", "script-output");
+        Environment.GetEnvironmentVariable("FACTORIO_SCRIPT_OUTPUT_DIR")
+        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Factorio", "script-output");
 
     /// <summary>
     /// Take an annotated screenshot centered on a position (defaults to player position).

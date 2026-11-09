@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "factorio_mcp": {
+      "command": "dotnet",
+      "args": ["C:/FactorioMCP1/FactorioMCP/bin/Release/net9.0/FactorioMCP.dll"],
+      "cwd": "C:/FactorioMCP1",
+      "env": {
+        "FACTORIO_RCON_HOST": "127.0.0.1",
+        "FACTORIO_RCON_PORT": "27015",
+        "FACTORIO_RCON_PASSWORD": "!powershell -NoProfile -Command \"Get-Content -Raw 'C:/FactorioMCP1/.local/factorio/rcon-password.txt'\"",
+        "FACTORIO_GOALS_FILE": "C:/FactorioMCP1/.local/data/goals.json",
+        "FACTORIO_BUILDINGS_FILE": "C:/FactorioMCP1/.local/data/buildings.json",
+        "FACTORIO_SCRIPT_OUTPUT_DIR": "C:/FactorioMCP1/.local/factorio/script-output"
+      },
+      "timeout": 60,
+      "exposure": "deferred",
+      "description": "Local FactorioMCP server for one isolated graphical Factorio test world over localhost RCON."
+    }
+  }
+}

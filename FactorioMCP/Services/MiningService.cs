@@ -46,7 +46,17 @@ internal sealed class MiningService(RconClient rcon)
                 rcon.print('{"success":false,"error":"no_resource","x":'..tx..',"y":'..ty..'}')
                 return
             end
-            local e = entities[1]
+            local e = nil
+            local nearest_distance = math.huge
+            for _, candidate in pairs(entities) do
+                local candidate_dx = candidate.position.x - tx
+                local candidate_dy = candidate.position.y - ty
+                local candidate_distance = candidate_dx * candidate_dx + candidate_dy * candidate_dy
+                if candidate_distance < nearest_distance then
+                    e = candidate
+                    nearest_distance = candidate_distance
+                end
+            end
             local name = e.name
             local amount = e.amount or 0
             local mining_time = e.prototype.mineable_properties.mining_time or 1.0
@@ -89,7 +99,17 @@ internal sealed class MiningService(RconClient rcon)
                     ',"mined":'..({{initialAmount}})..'}')
                 return
             end
-            local e = entities[1]
+            local e = nil
+            local nearest_distance = math.huge
+            for _, candidate in pairs(entities) do
+                local candidate_dx = candidate.position.x - tx
+                local candidate_dy = candidate.position.y - ty
+                local candidate_distance = candidate_dx * candidate_dx + candidate_dy * candidate_dy
+                if candidate_distance < nearest_distance then
+                    e = candidate
+                    nearest_distance = candidate_distance
+                end
+            end
             local remaining = e.amount or 0
             local mined = {{initialAmount}} - remaining
             rcon.print('{"is_mining":'..tostring(is_mining)..
@@ -150,6 +170,8 @@ internal sealed class MiningService(RconClient rcon)
 
         var entityName = startRoot.GetProperty("entity").GetString()!;
         var initialAmount = startRoot.GetProperty("amount").GetInt32();
+        var resourceX = startRoot.GetProperty("x").GetDouble();
+        var resourceY = startRoot.GetProperty("y").GetDouble();
         var targetMined = Math.Min(count, initialAmount); // Can't mine more than available
 
         // Step 2: Poll until enough units are mined or timeout
@@ -163,7 +185,7 @@ internal sealed class MiningService(RconClient rcon)
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(pollInterval, cancellationToken);
 
-            var statusResult = await GetMiningStatusAsync(x, y, initialAmount, cancellationToken);
+            var statusResult = await GetMiningStatusAsync(resourceX, resourceY, initialAmount, cancellationToken);
             using var statusDoc = JsonDocument.Parse(statusResult);
             var statusRoot = statusDoc.RootElement;
 
@@ -185,7 +207,7 @@ internal sealed class MiningService(RconClient rcon)
             if (!isMining && totalMined < targetMined && !depleted)
             {
                 // Try to restart mining
-                var restartResult = await StartMiningResourceAsync(x, y, cancellationToken);
+                var restartResult = await StartMiningResourceAsync(resourceX, resourceY, cancellationToken);
                 using var restartDoc = JsonDocument.Parse(restartResult);
                 if (!restartDoc.RootElement.TryGetProperty("success", out var restartSuccess) || !restartSuccess.GetBoolean())
                 {
