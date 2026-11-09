@@ -117,7 +117,7 @@ public class VisionServiceTests
     {
         await _service.TakeScreenshotAsync();
 
-        Assert.Contains("ai-player/vision.png", _rcon.LastCommand!);
+        Assert.Matches(@"ai-player/vision-[0-9a-f]{32}\.png", _rcon.LastCommand!);
     }
 
     [Fact]
@@ -186,15 +186,17 @@ public class VisionServiceTests
     {
         await _service.TakeScreenshotAsync();
 
-        Assert.Contains("time_to_live=120", _rcon.LastCommand!);
+        Assert.Contains("time_to_live=600", _rcon.LastCommand!);
     }
 
     [Fact]
-    public async Task TakeScreenshotAsync_CleansUpRenderObjects()
+    public async Task TakeScreenshotAsync_KeepsOverlaysUntilAsynchronousRender()
     {
         await _service.TakeScreenshotAsync();
 
-        Assert.Contains("obj.destroy()", _rcon.LastCommand!);
+        Assert.DoesNotContain("obj.destroy()", _rcon.LastCommand!);
+        Assert.Contains("by_player=player", _rcon.LastCommand!);
+        Assert.Contains("force_render=true", _rcon.LastCommand!);
     }
 
     // ── TakeScreenshotAsync — Map legend output ─────────────────────
@@ -307,42 +309,6 @@ public class VisionServiceTests
         Assert.Contains("furnace", lua);
         Assert.Contains("miner", lua);
         Assert.Contains("chest", lua);
-    }
-
-    // ── ReadScreenshotFileAsync ─────────────────────────────────────
-
-    [Fact]
-    public async Task ReadScreenshotFileAsync_ReturnsNull_WhenFileDoesNotExist()
-    {
-        _service.ScriptOutputDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-
-        var result = await _service.ReadScreenshotFileAsync();
-
-        Assert.Null(result);
-    }
-
-    [Fact]
-    public async Task ReadScreenshotFileAsync_ReturnsBytes_WhenFileExists()
-    {
-        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString(), "ai-player");
-        Directory.CreateDirectory(tempDir);
-
-        try
-        {
-            var testData = new byte[] { 0x89, 0x50, 0x4E, 0x47 }; // PNG header bytes
-            await File.WriteAllBytesAsync(Path.Combine(tempDir, "vision.png"), testData);
-
-            _service.ScriptOutputDir = Path.GetDirectoryName(tempDir)!;
-
-            var result = await _service.ReadScreenshotFileAsync();
-
-            Assert.NotNull(result);
-            Assert.Equal(testData, result);
-        }
-        finally
-        {
-            Directory.Delete(Path.GetDirectoryName(tempDir)!, true);
-        }
     }
 
     // ── OptimizeImage — Image size reduction ────────────────────────

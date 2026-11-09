@@ -31,27 +31,36 @@ internal sealed class VisionTools(VisionService vision, GameCommandQueue queue)
         int height = 1080,
         CancellationToken cancellationToken = default)
     {
-        // Execute the Lua script: draw overlays, take screenshot, collect legend
-        var mapLegend = await queue.ExecuteAsync(
+        return await queue.ExecuteAsync(
             nameof(TakeScreenshot),
-            ct => vision.TakeScreenshotAsync(centerX, centerY, zoom, width, height, ct),
+            async ct => FormatResult(await vision.CaptureAsync(centerX, centerY, zoom, width, height, ct)),
             cancellationToken);
+    }
 
-        // Read the screenshot file from disk
-        var imageBytes = await vision.ReadScreenshotFileAsync(cancellationToken);
-
+    internal static CallToolResult FormatResult(VisionService.Capture capture)
+    {
         var content = new List<ContentBlock>();
-
-        if (imageBytes is { Length: > 0 })
+        var diagnostic = capture.Diagnostic;
+        if (capture.Image is { Length: > 0 })
         {
-            var (optimized, mimeType) = VisionService.OptimizeImage(imageBytes);
-            content.Add(ImageContentBlock.FromBytes(optimized, mimeType));
+            try
+            {
+                var (optimized, mimeType) = VisionService.OptimizeImage(capture.Image);
+                content.Add(ImageContentBlock.FromBytes(optimized, mimeType));
+            }
+            catch (Exception ex) when (ex is SixLabors.ImageSharp.UnknownImageFormatException or
+                SixLabors.ImageSharp.InvalidImageContentException or NotSupportedException)
+            {
+                diagnostic = $"Screenshot optimization failed: {ex.Message}";
+            }
         }
+        if (diagnostic is not null)
+            content.Add(new TextContentBlock { Text = $"Image unavailable: {diagnostic}" });
 
         // Always include the text legend (works for both vision and text-only models)
         content.Add(new TextContentBlock
         {
-            Text = $"## Map Legend\n\n{mapLegend}"
+            Text = $"## Map Legend\n\n{capture.Legend}"
         });
 
         return new CallToolResult

@@ -1,5 +1,7 @@
 using System.Globalization;
 using FactorioMCP.Rcon;
+using FactorioMCP.Screenshots;
+using System.Text.Json;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
@@ -12,12 +14,50 @@ namespace FactorioMCP.Services;
 /// numbered labels) before taking a screenshot, then collects a structured "Map Legend"
 /// describing every visible entity for vision-model analysis.
 /// </summary>
-internal sealed class VisionService(RconClient rcon)
+internal sealed class VisionService : IDisposable
 {
-    /// <summary>
-    /// Default screenshot path within Factorio's <c>script-output</c> folder.
-    /// </summary>
-    private const string ScreenshotFileName = "ai-player/vision.png";
+    private readonly RconClient _rcon;
+    private readonly ScreenshotRetriever _retriever;
+    private readonly int? _playerIndex;
+
+    public VisionService(RconClient rcon) : this(rcon, ScreenshotSettings.FromEnvironment()) { }
+
+    internal VisionService(RconClient rcon, ScreenshotSettings settings)
+    {
+        _rcon = rcon;
+        _retriever = new ScreenshotRetriever(settings);
+        if (Environment.GetEnvironmentVariable("FACTORIO_SCREENSHOT_PLAYER") is not null)
+            _playerIndex = ScreenshotSettings.ReadInt("FACTORIO_SCREENSHOT_PLAYER", 1, 1, int.MaxValue);
+    }
+
+    internal sealed record Capture(string Legend, byte[]? Image, string? Diagnostic);
+
+    // The caller holds GameCommandQueue through capture AND retrieval, not just the RCON call.
+    internal async Task<Capture> CaptureAsync(double? x, double? y, double zoom, int width, int height, CancellationToken ct)
+    {
+        var id = Guid.NewGuid().ToString("N");
+        var legend = await TakeScreenshotAsync(x, y, zoom, width, height, ct, id).ConfigureAwait(false);
+        try
+        {
+            using var parsed = JsonDocument.Parse(legend);
+            if (parsed.RootElement.TryGetProperty("screenshot_error", out var error))
+                return new Capture(legend, null, error.GetString());
+        }
+        catch (JsonException)
+        {
+            return new Capture(legend, null, "Factorio did not return a valid map legend; capture was not confirmed.");
+        }
+        try
+        {
+            return new Capture(legend, await _retriever.RetrieveAsync(id, ct).ConfigureAwait(false), null);
+        }
+        catch (ScreenshotUnavailableException ex)
+        {
+            return new Capture(legend, null, ex.Message);
+        }
+    }
+
+    public void Dispose() => _retriever.Dispose();
 
     /// <summary>
     /// Maximum image size in bytes before optimization kicks in (1 MB).
@@ -38,14 +78,6 @@ internal sealed class VisionService(RconClient rcon)
     private const int JpegQuality = 80;
 
     /// <summary>
-    /// The local filesystem directory that maps to Factorio's <c>script-output</c>.
-    /// Defaults to <c>%APPDATA%/Factorio/script-output</c>.
-    /// </summary>
-    internal string ScriptOutputDir { get; set; } =
-        Environment.GetEnvironmentVariable("FACTORIO_SCRIPT_OUTPUT_DIR")
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Factorio", "script-output");
-
-    /// <summary>
     /// Take an annotated screenshot centered on a position (defaults to player position).
     /// Draws temporary rendering overlays on entities in the visible area, takes the
     /// screenshot, waits for file write, then returns a structured JSON map legend
@@ -64,28 +96,20 @@ internal sealed class VisionService(RconClient rcon)
         double zoom = 1.0,
         int width = 1920,
         int height = 1080,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? captureId = null)
     {
+        if (!double.IsFinite(zoom) || (centerX.HasValue && !double.IsFinite(centerX.Value)) ||
+            (centerY.HasValue && !double.IsFinite(centerY.Value)))
+            throw new ArgumentOutOfRangeException(nameof(zoom), "Zoom and coordinates must be finite.");
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(zoom, 0);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(width, 0);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(height, 0);
 
-        var lua = BuildScreenshotLua(centerX, centerY, zoom, width, height);
-        return rcon.ExecuteLuaAsync(lua, cancellationToken);
-    }
-
-    /// <summary>
-    /// Read the screenshot image bytes from disk after <see cref="TakeScreenshotAsync"/> has completed.
-    /// </summary>
-    /// <returns>PNG image bytes, or null if the file does not exist.</returns>
-    public async Task<byte[]?> ReadScreenshotFileAsync(CancellationToken cancellationToken = default)
-    {
-        var path = Path.Combine(ScriptOutputDir, ScreenshotFileName);
-
-        if (!File.Exists(path))
-            return null;
-
-        return await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(width, ScreenshotSettings.MaxDimension);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(height, ScreenshotSettings.MaxDimension);
+        var lua = BuildScreenshotLua(centerX, centerY, zoom, width, height, captureId, _playerIndex);
+        return _rcon.ExecuteLuaAsync(lua, cancellationToken);
     }
 
     /// <summary>
@@ -97,8 +121,12 @@ internal sealed class VisionService(RconClient rcon)
         double? centerY,
         double zoom,
         int width,
-        int height)
+        int height,
+        string? captureId = null,
+        int? playerIndex = null)
     {
+        var screenshotPath = ScreenshotFiles.RelativePath(captureId ?? Guid.NewGuid().ToString("N"));
+        var playerExpression = playerIndex.HasValue ? $"game.get_player({playerIndex.Value})" : "game.connected_players[1]";
         // Calculate the world-space radius visible in the screenshot.
         // Factorio's zoom=1 means 32 pixels per tile. The visible area in tiles
         // is (pixels / (32 * zoom)). We use half the larger dimension as search radius
@@ -109,7 +137,11 @@ internal sealed class VisionService(RconClient rcon)
 
         return string.Create(CultureInfo.InvariantCulture, $$"""
             {{FactorioService.LuaJsonEscape}}
-            local player = game.connected_players[1]
+            local player = {{playerExpression}}
+            if not player or not player.connected then
+                rcon.print('{"entity_count":0,"entities":[],"screenshot_error":"No connected screenshot player. Join with graphical Factorio; headless cannot capture."}')
+                return
+            end
             local surface = player.surface
             local center = {{posExpr}}
             local cx = center.x
@@ -161,8 +193,13 @@ internal sealed class VisionService(RconClient rcon)
                 return colors.default_type
             end
 
-            -- Track render objects for cleanup after screenshot
+            -- Clear only this tool's previous overlays before drawing the new capture.
+            -- Current overlays must survive the command until the renderer runs.
+            for _, previous in pairs(storage._factorio_mcp_vision_overlays or {}) do
+                if previous.valid then previous.destroy() end
+            end
             local render_ids = {}
+            storage._factorio_mcp_vision_overlays = render_ids
             local legend_parts = {}
             local idx = 0
 
@@ -180,7 +217,7 @@ internal sealed class VisionService(RconClient rcon)
                     local rect = rendering.draw_rectangle{
                         color=col, width=2, filled=false,
                         left_top=lt, right_bottom=rb,
-                        surface=surface, time_to_live=120
+                        surface=surface, time_to_live=600
                     }
                     render_ids[#render_ids+1] = rect
 
@@ -191,7 +228,7 @@ internal sealed class VisionService(RconClient rcon)
                         target={lt.x, lt.y - 0.3},
                         color={r=1, g=1, b=1, a=1},
                         scale=1.2,
-                        time_to_live=120
+                        time_to_live=600
                     }
                     render_ids[#render_ids+1] = label
 
@@ -222,7 +259,7 @@ internal sealed class VisionService(RconClient rcon)
                             width=3,
                             from=pp, to=dp,
                             surface=surface,
-                            time_to_live=120
+                            time_to_live=600
                         }
                         render_ids[#render_ids+1] = arrow
                     end
@@ -250,26 +287,31 @@ internal sealed class VisionService(RconClient rcon)
                 end
             end
 
-            -- Take screenshot with alt-mode info
+            -- Requests render after the update. Do NOT destroy overlays in this command.
+            local capture_ok, capture_error = pcall(function()
             game.take_screenshot{
                 player=player,
+                by_player=player,
+                surface=surface,
+                force_render=true,
                 position={cx, cy},
                 resolution={x={{width}}, y={{height}}},
                 zoom=zoom,
-                path="{{ScreenshotFileName}}",
+                path="{{screenshotPath}}",
                 show_gui=false,
                 show_entity_info=true,
                 anti_alias=false,
                 quality=80
             }
 
-            -- Wait for the screenshot file to be written to disk
+            -- Flush queued writes; this is NOT proof that this graphical peer rendered a file.
             game.set_wait_for_screenshots_to_finish()
-
-            -- Clean up render objects
-            for _, obj in pairs(render_ids) do
-                obj.destroy()
+            end)
+            local capture_diagnostic = ''
+            if not capture_ok then
+                capture_diagnostic = ',"screenshot_error":"'..esc(tostring(capture_error))..'"'
             end
+            -- TTL cleans up overlays after the asynchronous renderer has used them.
 
             -- Output map legend
             rcon.print('{"entity_count":'..idx
@@ -278,7 +320,7 @@ internal sealed class VisionService(RconClient rcon)
                 ..',"zoom":'..zoom
                 ..',"tiles_wide":'..string.format("%.1f", tiles_w)
                 ..',"tiles_high":'..string.format("%.1f", tiles_h)
-                ..',"entities":['..table.concat(legend_parts, ",")..']}')
+                ..',"entities":['..table.concat(legend_parts, ",")..']'..capture_diagnostic..'}')
             """);
     }
 
@@ -297,7 +339,7 @@ internal sealed class VisionService(RconClient rcon)
     /// </returns>
     internal static (byte[] Data, string MimeType) OptimizeImage(byte[] imageBytes, int maxDimension = MaxDimension)
     {
-        using var image = Image.Load(imageBytes);
+        using var image = Image.Load(ScreenshotFiles.DecodeOptions, imageBytes);
 
         var longestSide = Math.Max(image.Width, image.Height);
 

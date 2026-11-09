@@ -41,4 +41,4 @@ These commands select a model for the launched session only; they do not edit Pi
 
 ## Evidence
 
-The smoke script writes JSON evidence under `.local\evidence`. It proves normal pathfinding movement to iron, reach-range validation, tick-based mining, and a positive inventory delta. Desktop capture is deliberately disabled because unrelated windows can expose private information; Factorio's built-in screenshot output is also not used because it does not honor this isolated write-data location.
+The smoke script writes JSON evidence under `.local\evidence`. It proves normal pathfinding movement to iron, reach-range validation, tick-based mining, and a positive inventory delta. Desktop capture is deliberately disabled because unrelated windows can expose private information. For the new Factorio-native screenshot transport, set `FACTORIO_SCRIPT_OUTPUT_DIR` to the actual graphical instance's `script-output` directory (for this isolated configuration, `C:\FactorioMCP1\.local\factorio\script-output`). See [screenshot setup and opt-in smoke test](SCREENSHOTS.md); a successful live capture against this isolated world has not yet been verified.
