@@ -371,8 +371,8 @@ internal sealed class TaskTools(
                 rcon.print('{"error":"no_entity"}')
                 return
             end
-            local src = e.get_inventory(defines.inventory.furnace_source)
-            local dst = e.get_inventory(defines.inventory.furnace_result)
+            local src = e.get_inventory(defines.inventory.furnace_source or defines.inventory.crafter_input)
+            local dst = e.get_inventory(defines.inventory.furnace_result or defines.inventory.crafter_output)
             local src_count = src and src.get_item_count("{{ore}}") or 0
             local dst_count = dst and dst.get_item_count("{{outputItem}}") or 0
             local status_names = {}
