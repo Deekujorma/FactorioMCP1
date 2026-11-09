@@ -219,11 +219,11 @@ internal sealed partial class FactorioService
             end
             local inv_map = {
                 fuel = defines.inventory.fuel,
-                furnace_source = defines.inventory.furnace_source,
-                furnace_result = defines.inventory.furnace_result,
+                furnace_source = defines.inventory.furnace_source or defines.inventory.crafter_input,
+                furnace_result = defines.inventory.furnace_result or defines.inventory.crafter_output,
                 chest = defines.inventory.chest,
-                assembling_machine_input = defines.inventory.assembling_machine_input,
-                assembling_machine_output = defines.inventory.assembling_machine_output
+                assembling_machine_input = defines.inventory.assembling_machine_input or defines.inventory.crafter_input,
+                assembling_machine_output = defines.inventory.assembling_machine_output or defines.inventory.crafter_output
             }
             local inv_type = inv_map["{{inventoryType}}"]
             if not inv_type then

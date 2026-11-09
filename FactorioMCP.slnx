@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="FactorioMCP.ScreenshotHelper/FactorioMCP.ScreenshotHelper.csproj" />
+  <Project Path="FactorioMCP.Screenshots/FactorioMCP.Screenshots.csproj" />
   <Project Path="FactorioMCP.Tests/FactorioMCP.Tests.csproj" />
   <Project Path="FactorioMCP/FactorioMCP.csproj" />
 </Solution>

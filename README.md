@@ -42,8 +42,14 @@ factorio --start-server save.zip --rcon-port 27015 --rcon-password mypassword
 ### 3. Build
 
 ```sh
-dotnet build
+dotnet build FactorioMCP.sln
 ```
+
+## Screenshots (local or LAN)
+
+`TakeScreenshot` keeps the annotated image and structured Map Legend. Local mode needs no helper; remote mode uses a small token-authenticated HTTP screenshot helper on the graphical Factorio machine while MCP remains stdio and gameplay remains RCON.
+
+See [Screenshot setup](docs/SCREENSHOTS.md) for exact Windows/Omarchy commands, all environment variables, the four deployment combinations, firewall rules, and verification limitations. Headless-only Factorio cannot produce screenshots.
 
 ## Connecting an MCP Client
 

@@ -616,10 +616,10 @@ internal sealed partial class FactorioService
             local containers = {}
             local inv_types = {
                 {defines.inventory.chest, "chest"},
-                {defines.inventory.furnace_source, "furnace_source"},
-                {defines.inventory.furnace_result, "furnace_result"},
-                {defines.inventory.assembling_machine_input, "assembling_machine_input"},
-                {defines.inventory.assembling_machine_output, "assembling_machine_output"}
+                {defines.inventory.furnace_source or defines.inventory.crafter_input, "furnace_source"},
+                {defines.inventory.furnace_result or defines.inventory.crafter_output, "furnace_result"},
+                {defines.inventory.assembling_machine_input or defines.inventory.crafter_input, "assembling_machine_input"},
+                {defines.inventory.assembling_machine_output or defines.inventory.crafter_output, "assembling_machine_output"}
             }
             local entities = player.surface.find_entities_filtered{
                 position=player.position, radius={{radius}}
@@ -627,10 +627,15 @@ internal sealed partial class FactorioService
             for _, e in pairs(entities) do
                 if e ~= player.character then
                     local entity_count = 0
+                    local counted_indexes = {}
                     for _, inv_pair in pairs(inv_types) do
-                        local inv = e.get_inventory(inv_pair[1])
-                        if inv then
-                            entity_count = entity_count + inv.get_item_count(item)
+                        local index = inv_pair[1]
+                        if index and not counted_indexes[index] then
+                            counted_indexes[index] = true
+                            local inv = e.get_inventory(index)
+                            if inv then
+                                entity_count = entity_count + inv.get_item_count(item)
+                            end
                         end
                     end
                     if entity_count > 0 then

@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FactorioMCP\FactorioMCP.csproj" />
+    <ProjectReference Include="../FactorioMCP.ScreenshotHelper/FactorioMCP.ScreenshotHelper.csproj" />
   </ItemGroup>
 
 </Project>

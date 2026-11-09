@@ -210,14 +210,18 @@ internal sealed partial class FactorioService
                 rcon.print('{"success":false,"error":"no_entity","x":{{x}},"y":{{y}}}')
                 return
             end
-            -- Map inventory type string to defines
+            -- Map inventory type string to defines.
+            -- Factorio 2.x removed the legacy furnace_source/furnace_result
+            -- inventory names; furnace input/output are exposed through the
+            -- generic crafter_input/crafter_output defines. The 1.x names are
+            -- kept first so behaviour is unchanged for older game versions.
             local inv_map = {
                 fuel = defines.inventory.fuel,
-                furnace_source = defines.inventory.furnace_source,
-                furnace_result = defines.inventory.furnace_result,
+                furnace_source = defines.inventory.furnace_source or defines.inventory.crafter_input,
+                furnace_result = defines.inventory.furnace_result or defines.inventory.crafter_output,
                 chest = defines.inventory.chest,
-                assembling_machine_input = defines.inventory.assembling_machine_input,
-                assembling_machine_output = defines.inventory.assembling_machine_output
+                assembling_machine_input = defines.inventory.assembling_machine_input or defines.inventory.crafter_input,
+                assembling_machine_output = defines.inventory.assembling_machine_output or defines.inventory.crafter_output
             }
             local inv_type = inv_map["{{inventoryType}}"]
             if not inv_type then
@@ -280,11 +284,11 @@ internal sealed partial class FactorioService
             end
             local inv_map = {
                 fuel = defines.inventory.fuel,
-                furnace_source = defines.inventory.furnace_source,
-                furnace_result = defines.inventory.furnace_result,
+                furnace_source = defines.inventory.furnace_source or defines.inventory.crafter_input,
+                furnace_result = defines.inventory.furnace_result or defines.inventory.crafter_output,
                 chest = defines.inventory.chest,
-                assembling_machine_input = defines.inventory.assembling_machine_input,
-                assembling_machine_output = defines.inventory.assembling_machine_output
+                assembling_machine_input = defines.inventory.assembling_machine_input or defines.inventory.crafter_input,
+                assembling_machine_output = defines.inventory.assembling_machine_output or defines.inventory.crafter_output
             }
             local inv_type = inv_map["{{inventoryType}}"]
             if not inv_type then
@@ -369,7 +373,7 @@ internal sealed partial class FactorioService
             end
             -- Inventories
             local inv_names = {"fuel", "furnace_source", "furnace_result", "chest", "assembling_machine_input", "assembling_machine_output"}
-            local inv_defines = {defines.inventory.fuel, defines.inventory.furnace_source, defines.inventory.furnace_result, defines.inventory.chest, defines.inventory.assembling_machine_input, defines.inventory.assembling_machine_output}
+            local inv_defines = {defines.inventory.fuel, defines.inventory.furnace_source or defines.inventory.crafter_input, defines.inventory.furnace_result or defines.inventory.crafter_output, defines.inventory.chest, defines.inventory.assembling_machine_input or defines.inventory.crafter_input, defines.inventory.assembling_machine_output or defines.inventory.crafter_output}
             local inv_parts = {}
             for i, inv_name in pairs(inv_names) do
                 local inv = e.get_inventory(inv_defines[i])
@@ -471,7 +475,16 @@ internal sealed partial class FactorioService
                 return
             end
             local e = entities[1]
-            local inv = e.get_inventory(defines.inventory.{{inventoryType}})
+            local inv_map = {
+                fuel = defines.inventory.fuel,
+                furnace_source = defines.inventory.furnace_source or defines.inventory.crafter_input,
+                furnace_result = defines.inventory.furnace_result or defines.inventory.crafter_output,
+                chest = defines.inventory.chest,
+                assembling_machine_input = defines.inventory.assembling_machine_input or defines.inventory.crafter_input,
+                assembling_machine_output = defines.inventory.assembling_machine_output or defines.inventory.crafter_output
+            }
+            local inv_type = inv_map["{{inventoryType}}"]
+            local inv = e.get_inventory(inv_type)
             if not inv then
                 rcon.print('{"success":false,"error":"no_inventory","entity":"'..esc(e.name)..'","inventory_type":"{{inventoryType}}"}')
                 return
@@ -523,7 +536,16 @@ internal sealed partial class FactorioService
                 return
             end
             local e = entities[1]
-            local inv = e.get_inventory(defines.inventory.{{inventoryType}})
+            local inv_map = {
+                fuel = defines.inventory.fuel,
+                furnace_source = defines.inventory.furnace_source or defines.inventory.crafter_input,
+                furnace_result = defines.inventory.furnace_result or defines.inventory.crafter_output,
+                chest = defines.inventory.chest,
+                assembling_machine_input = defines.inventory.assembling_machine_input or defines.inventory.crafter_input,
+                assembling_machine_output = defines.inventory.assembling_machine_output or defines.inventory.crafter_output
+            }
+            local inv_type = inv_map["{{inventoryType}}"]
+            local inv = e.get_inventory(inv_type)
             if not inv then
                 rcon.print('{"success":false,"error":"no_inventory","entity":"'..esc(e.name)..'","inventory_type":"{{inventoryType}}"}')
                 return

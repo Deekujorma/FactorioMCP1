@@ -110,8 +110,8 @@ internal sealed partial class FactorioService
                     missing[#missing+1] = '{"slot":"fuel","issue":"empty"}'
                 end
             end
-            -- Check furnace source
-            local src_inv = e.get_inventory(defines.inventory.furnace_source)
+            -- Check furnace source (Factorio 2.x exposes it as crafter_input)
+            local src_inv = e.get_inventory(defines.inventory.furnace_source or defines.inventory.crafter_input)
             if src_inv and #src_inv > 0 then
                 local has_source = false
                 for i = 1, #src_inv do
@@ -125,7 +125,7 @@ internal sealed partial class FactorioService
             -- Check assembler inputs against recipe
             local recipe = e.get_recipe()
             if recipe then
-                local input_inv = e.get_inventory(defines.inventory.assembling_machine_input)
+                local input_inv = e.get_inventory(defines.inventory.assembling_machine_input or defines.inventory.crafter_input)
                 if input_inv then
                     for _, ingredient in pairs(recipe.ingredients) do
                         local have = input_inv.get_item_count(ingredient.name)
@@ -136,7 +136,7 @@ internal sealed partial class FactorioService
                 end
             end
             -- Check output full
-            local out_inv = e.get_inventory(defines.inventory.furnace_result) or e.get_inventory(defines.inventory.assembling_machine_output)
+            local out_inv = e.get_inventory(defines.inventory.furnace_result or defines.inventory.assembling_machine_output or defines.inventory.crafter_output)
             if out_inv then
                 local all_full = true
                 for i = 1, #out_inv do
